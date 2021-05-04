@@ -13,7 +13,26 @@
 
 #include "bsp/board.h"
 #include "tusb.h"
+#include "hardware/gpio.h"
 
+
+#define GPIO_ENCODER_A  4
+#define GPIO_ENCODER_B  5
+
+#define GPIO_AXIS_X     6
+#define GPIO_AXIS_Y     7
+#define GPIO_AXIS_Z     8
+
+#define GPIO_SPEED_1    10
+#define GPIO_SPEED_2    11
+#define GPIO_SPEED_3    12
+#define GPIO_SPEED_4    13
+
+#define GPIO_OK         14
+
+
+#define HALF_PULSE_LENGTH_MS 2
+#define BUTTON_PULSE_LENGTH_MS 100
 
 typedef struct TU_ATTR_PACKED
 {
@@ -24,16 +43,158 @@ typedef struct TU_ATTR_PACKED
 void led_blinking_task(void);
 extern void hid_task(void);
 
+uint8_t last_axis = 0;
+uint8_t last_button_code = 0;
+int16_t current_encoder_value = 0;
+uint8_t current_speed = 1;
+
+
+
+void pulse_button(uint8_t pin) {
+    gpio_put(pin, false);
+    sleep_ms(BUTTON_PULSE_LENGTH_MS);
+    gpio_put(pin, true);
+}
+
+void select_axis_pulse(uint8_t data) {
+    printf("selected axis: %02X \r\n", data);
+    gpio_put(GPIO_AXIS_X, true);
+    gpio_put(GPIO_AXIS_Y, true);
+    gpio_put(GPIO_AXIS_Z, true);
+    switch(data) {
+        case 0x11: pulse_button(GPIO_AXIS_X); break;
+        case 0x12: pulse_button(GPIO_AXIS_Y); break;
+        case 0x13: pulse_button(GPIO_AXIS_Z); break;
+    }
+    current_encoder_value = 0;
+}
+
+/**
+ * Does not work with ESTLCAM (MEGA)
+ */
+void select_axis_deprecated(uint8_t data) {
+    printf("selected axis: %02X \r\n", data);
+    gpio_put(GPIO_AXIS_X, true);
+    gpio_put(GPIO_AXIS_Y, true);
+    gpio_put(GPIO_AXIS_Z, true);
+    switch(data) {
+        case 0x11: gpio_put(GPIO_AXIS_X, false); break;
+        case 0x12: gpio_put(GPIO_AXIS_Y, false); break;
+        case 0x13: gpio_put(GPIO_AXIS_Z, false); break;
+    }
+    current_encoder_value = 0;
+}
+
+void set_speed(uint8_t value) {
+    printf("selected speed: %d \r\n", current_speed);
+    gpio_put(GPIO_SPEED_1, true);
+    gpio_put(GPIO_SPEED_2, true);
+    gpio_put(GPIO_SPEED_3, true);
+    gpio_put(GPIO_SPEED_4, true);
+    switch(value) {
+        case 1: gpio_put(GPIO_SPEED_1, false); break;
+        case 2: gpio_put(GPIO_SPEED_2, false); break;
+        case 3: gpio_put(GPIO_SPEED_3, false); break;
+        case 4: gpio_put(GPIO_SPEED_4, false); break;
+    }
+}
+
+void toggle_speed() {
+    current_speed++;
+    if (current_speed > 4) {
+        current_speed = 1;
+    }
+    set_speed(current_speed);
+}
+
+
+void encoder_task() {
+    if (current_encoder_value == 0) {
+        return;
+    }
+    if (current_encoder_value > 0) {
+        // CW
+        gpio_put(GPIO_ENCODER_A, true);
+        sleep_ms(HALF_PULSE_LENGTH_MS);
+        gpio_put(GPIO_ENCODER_B, true);
+        sleep_ms(HALF_PULSE_LENGTH_MS);
+        gpio_put(GPIO_ENCODER_A, false);
+        sleep_ms(HALF_PULSE_LENGTH_MS);
+        gpio_put(GPIO_ENCODER_B, false);
+        current_encoder_value--;
+    } else if (current_encoder_value < 0) {
+        // CCW
+        gpio_put(GPIO_ENCODER_B, true);
+        sleep_ms(HALF_PULSE_LENGTH_MS);
+        gpio_put(GPIO_ENCODER_A, true);
+        sleep_ms(HALF_PULSE_LENGTH_MS);
+        gpio_put(GPIO_ENCODER_B, false);
+        sleep_ms(HALF_PULSE_LENGTH_MS);
+        gpio_put(GPIO_ENCODER_A, false);
+        current_encoder_value++;
+    }
+    sleep_ms(HALF_PULSE_LENGTH_MS);
+    printf("%d \r\n", current_encoder_value);
+}
+
+void setup() {
+    gpio_init(GPIO_ENCODER_A);
+    gpio_set_dir(GPIO_ENCODER_A, GPIO_OUT);
+    gpio_put(GPIO_ENCODER_A, false);
+
+    gpio_init(GPIO_ENCODER_B);
+    gpio_set_dir(GPIO_ENCODER_B, GPIO_OUT);
+    gpio_put(GPIO_ENCODER_B, false);
+
+    gpio_init(GPIO_SPEED_1);
+    gpio_set_dir(GPIO_SPEED_1, GPIO_OUT);
+    gpio_put(GPIO_SPEED_1, true);
+
+    gpio_init(GPIO_SPEED_2);
+    gpio_set_dir(GPIO_SPEED_2, GPIO_OUT);
+    gpio_put(GPIO_SPEED_2, true);
+
+    gpio_init(GPIO_SPEED_3);
+    gpio_set_dir(GPIO_SPEED_3, GPIO_OUT);
+    gpio_put(GPIO_SPEED_3, true);
+
+    gpio_init(GPIO_SPEED_4);
+    gpio_set_dir(GPIO_SPEED_4, GPIO_OUT);
+    gpio_put(GPIO_SPEED_4, true);
+
+    gpio_init(GPIO_AXIS_X);
+    gpio_set_dir(GPIO_AXIS_X, GPIO_OUT);
+    gpio_put(GPIO_AXIS_X, true);
+
+    gpio_init(GPIO_AXIS_Y);
+    gpio_set_dir(GPIO_AXIS_Y, GPIO_OUT);
+    gpio_put(GPIO_AXIS_Y, true);
+
+    gpio_init(GPIO_AXIS_Z);
+    gpio_set_dir(GPIO_AXIS_Z, GPIO_OUT);
+    gpio_put(GPIO_AXIS_Z, true);
+
+    gpio_init(GPIO_OK);
+    gpio_set_dir(GPIO_OK, GPIO_OUT);
+    gpio_put(GPIO_OK, true);
+
+    set_speed(1);
+}
+
+
 int main(void) {
     board_init();
     tusb_init();
+    setup();
 
     while (1) {
+        encoder_task();
+
         // tinyusb host task
         tuh_task();
-        led_blinking_task();
 
         hid_task();
+        led_blinking_task();
     }
     return 0;
 }
@@ -56,6 +217,28 @@ static inline void process_generic_hid_report(hid_generic_hid_report_t const *p_
         p_new_report->buffer[5]);
 
     board_led_write(0);
+
+    uint8_t axis_select = p_new_report->buffer[3];
+    if (last_axis != axis_select) {
+        last_axis = axis_select;
+        select_axis_pulse(axis_select);
+    }
+
+    int8_t encoder = (int8_t) p_new_report->buffer[4];
+    //printf("encoder: %d \r\n", encoder);
+
+    if (encoder != 0) {
+        current_encoder_value += encoder;
+        //printf("encoder: %d \r\n", current_encoder_value);
+    }
+
+    uint8_t button = p_new_report->buffer[1];
+    if (button == 0 && last_button_code != 0) {
+        switch(last_button_code) {
+            case 0x0D: toggle_speed(); break;
+        }        
+    }
+    last_button_code = button;
 }
 
 void tuh_hid_generic_hid_mounted_cb(uint8_t dev_addr) {
