@@ -14,6 +14,8 @@
 #include "bsp/board.h"
 #include "tusb.h"
 #include "hardware/gpio.h"
+#include "pico/stdlib.h"
+#include "pico/multicore.h"
 
 
 #define GPIO_ENCODER_A  4
@@ -68,6 +70,26 @@ uint8_t last_axis = 0;
 uint8_t last_button_code = 0;
 int16_t current_encoder_value = 0;
 uint8_t current_speed = 1;
+
+
+
+void core1_entry() {
+    int16_t encoder_value = 0;
+
+    puts("core1 started");
+    // core1 main loop
+    puts("core1");
+    puts("core1");
+    puts("core1");
+    puts("core1");
+    puts("core1");
+
+    while(1) {
+        puts("core1x");
+        sleep_ms(500);
+    }
+
+}
 
 
 
@@ -159,12 +181,15 @@ void encoder_task() {
 }
 
 void setup_gpio() {
-    uint8_t len = sizeof(gpio_init_array);
-    for(uint8_t current_gpio = 0; current_gpio < len; current_gpio++) {
-        gpio_init(current_gpio);
-        gpio_set_dir(current_gpio, GPIO_OUT);
-        gpio_put(current_gpio, true);
+    uint8_t alength = sizeof(gpio_init_array);
+
+    for(uint8_t i = 0; i < alength ; i++) {
+        uint8_t g = gpio_init_array[i];
+        gpio_init(g);
+        gpio_set_dir(g, GPIO_OUT);
+        gpio_put(g, true);
     }
+
     gpio_put(GPIO_ENCODER_A, false);
     gpio_put(GPIO_ENCODER_B, false);
 }
@@ -177,17 +202,26 @@ void setup() {
 
 
 int main(void) {
+
+    stdio_init_all();
+
     board_init();
     tusb_init();
     setup();
 
+    puts("starting ...");
+
+
+    // start core1 loop
+    multicore_launch_core1(core1_entry);
+
+    // core0 loop
     while (1) {
-        encoder_task();
+        //encoder_task();
 
         // tinyusb host task
-        tuh_task();
-
-        hid_task();
+        //tuh_task();
+        //hid_task();
         led_blinking_task();
     }
     return 0;
@@ -224,6 +258,12 @@ static inline void process_generic_hid_report(hid_generic_hid_report_t const *p_
     if (encoder != 0) {
         current_encoder_value += encoder;
         //printf("encoder: %d \r\n", current_encoder_value);
+
+        // push to core1
+        uint32_t data = 0xFF & encoder;
+        if (multicore_fifo_wready()) {
+            multicore_fifo_push_blocking(data);
+        }
     }
 
     uint8_t button = p_new_report->buffer[1];

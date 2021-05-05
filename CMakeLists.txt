@@ -22,4 +22,4 @@ target_include_directories(${projname} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 pico_enable_stdio_uart(${projname} 1)
 pico_add_extra_outputs(${projname})
 
-target_link_libraries(${projname} pico_stdlib mytinyusb_host mytinyusb_board)
+target_link_libraries(${projname} pico_stdlib pico_multicore mytinyusb_host mytinyusb_board)
