@@ -30,6 +30,12 @@
 
 #define GPIO_OK         14
 
+#define GPIO_PROG_START  16
+#define GPIO_PROG_STOP   17
+
+#define GPIO_PWM_FEEDT   18
+#define GPIO_PWM_SPINDLE 19
+
 
 #define HALF_PULSE_LENGTH_MS 2
 #define BUTTON_PULSE_LENGTH_MS 100
@@ -42,6 +48,21 @@ typedef struct TU_ATTR_PACKED
 
 void led_blinking_task(void);
 extern void hid_task(void);
+
+uint8_t gpio_init_array[] = {
+    GPIO_ENCODER_A,
+    GPIO_ENCODER_B,
+    GPIO_AXIS_X,
+    GPIO_AXIS_Y,
+    GPIO_AXIS_Z,
+    GPIO_SPEED_1,
+    GPIO_SPEED_2,
+    GPIO_SPEED_3,
+    GPIO_SPEED_4,
+    GPIO_OK,
+    GPIO_PROG_START,
+    GPIO_PROG_STOP
+};
 
 uint8_t last_axis = 0;
 uint8_t last_button_code = 0;
@@ -137,47 +158,20 @@ void encoder_task() {
     printf("%d \r\n", current_encoder_value);
 }
 
-void setup() {
-    gpio_init(GPIO_ENCODER_A);
-    gpio_set_dir(GPIO_ENCODER_A, GPIO_OUT);
+void setup_gpio() {
+    uint8_t len = sizeof(gpio_init_array);
+    for(uint8_t current_gpio = 0; current_gpio < len; current_gpio++) {
+        gpio_init(current_gpio);
+        gpio_set_dir(current_gpio, GPIO_OUT);
+        gpio_put(current_gpio, true);
+    }
     gpio_put(GPIO_ENCODER_A, false);
-
-    gpio_init(GPIO_ENCODER_B);
-    gpio_set_dir(GPIO_ENCODER_B, GPIO_OUT);
     gpio_put(GPIO_ENCODER_B, false);
+}
 
-    gpio_init(GPIO_SPEED_1);
-    gpio_set_dir(GPIO_SPEED_1, GPIO_OUT);
-    gpio_put(GPIO_SPEED_1, true);
-
-    gpio_init(GPIO_SPEED_2);
-    gpio_set_dir(GPIO_SPEED_2, GPIO_OUT);
-    gpio_put(GPIO_SPEED_2, true);
-
-    gpio_init(GPIO_SPEED_3);
-    gpio_set_dir(GPIO_SPEED_3, GPIO_OUT);
-    gpio_put(GPIO_SPEED_3, true);
-
-    gpio_init(GPIO_SPEED_4);
-    gpio_set_dir(GPIO_SPEED_4, GPIO_OUT);
-    gpio_put(GPIO_SPEED_4, true);
-
-    gpio_init(GPIO_AXIS_X);
-    gpio_set_dir(GPIO_AXIS_X, GPIO_OUT);
-    gpio_put(GPIO_AXIS_X, true);
-
-    gpio_init(GPIO_AXIS_Y);
-    gpio_set_dir(GPIO_AXIS_Y, GPIO_OUT);
-    gpio_put(GPIO_AXIS_Y, true);
-
-    gpio_init(GPIO_AXIS_Z);
-    gpio_set_dir(GPIO_AXIS_Z, GPIO_OUT);
-    gpio_put(GPIO_AXIS_Z, true);
-
-    gpio_init(GPIO_OK);
-    gpio_set_dir(GPIO_OK, GPIO_OUT);
-    gpio_put(GPIO_OK, true);
-
+void setup() {
+    
+    setup_gpio();
     set_speed(1);
 }
 
