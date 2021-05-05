@@ -39,7 +39,7 @@
 #define GPIO_PWM_SPINDLE 19
 
 
-#define HALF_PULSE_LENGTH_MS 2
+#define HALF_PULSE_LENGTH_MS 1
 #define BUTTON_PULSE_LENGTH_MS 100
 
 typedef struct TU_ATTR_PACKED
@@ -77,16 +77,44 @@ void core1_entry() {
     int16_t encoder_value = 0;
 
     puts("core1 started");
-    // core1 main loop
-    puts("core1");
-    puts("core1");
-    puts("core1");
-    puts("core1");
-    puts("core1");
 
+    // core1 main loop
     while(1) {
-        puts("core1x");
-        sleep_ms(500);
+
+        // check for new data from core0
+        if (multicore_fifo_rvalid()) {
+            uint32_t data = multicore_fifo_pop_blocking();
+            int8_t value = (int8_t) (0xFF & data);
+            if (value != 0) {
+                encoder_value += value;
+            }            
+        }
+
+        if (encoder_value != 0) {
+            if (encoder_value > 0) {
+                // CW
+                gpio_put(GPIO_ENCODER_A, true);
+                sleep_ms(HALF_PULSE_LENGTH_MS);
+                gpio_put(GPIO_ENCODER_B, true);
+                sleep_ms(HALF_PULSE_LENGTH_MS);
+                gpio_put(GPIO_ENCODER_A, false);
+                sleep_ms(HALF_PULSE_LENGTH_MS);
+                gpio_put(GPIO_ENCODER_B, false);
+                encoder_value--;
+            } else if (encoder_value < 0) {
+                // CCW
+                gpio_put(GPIO_ENCODER_B, true);
+                sleep_ms(HALF_PULSE_LENGTH_MS);
+                gpio_put(GPIO_ENCODER_A, true);
+                sleep_ms(HALF_PULSE_LENGTH_MS);
+                gpio_put(GPIO_ENCODER_B, false);
+                sleep_ms(HALF_PULSE_LENGTH_MS);
+                gpio_put(GPIO_ENCODER_A, false);
+                encoder_value++;
+            }
+            sleep_ms(HALF_PULSE_LENGTH_MS);
+            //printf("%d \r\n", encoder_value);
+        }
     }
 
 }
@@ -151,35 +179,6 @@ void toggle_speed() {
 }
 
 
-void encoder_task() {
-    if (current_encoder_value == 0) {
-        return;
-    }
-    if (current_encoder_value > 0) {
-        // CW
-        gpio_put(GPIO_ENCODER_A, true);
-        sleep_ms(HALF_PULSE_LENGTH_MS);
-        gpio_put(GPIO_ENCODER_B, true);
-        sleep_ms(HALF_PULSE_LENGTH_MS);
-        gpio_put(GPIO_ENCODER_A, false);
-        sleep_ms(HALF_PULSE_LENGTH_MS);
-        gpio_put(GPIO_ENCODER_B, false);
-        current_encoder_value--;
-    } else if (current_encoder_value < 0) {
-        // CCW
-        gpio_put(GPIO_ENCODER_B, true);
-        sleep_ms(HALF_PULSE_LENGTH_MS);
-        gpio_put(GPIO_ENCODER_A, true);
-        sleep_ms(HALF_PULSE_LENGTH_MS);
-        gpio_put(GPIO_ENCODER_B, false);
-        sleep_ms(HALF_PULSE_LENGTH_MS);
-        gpio_put(GPIO_ENCODER_A, false);
-        current_encoder_value++;
-    }
-    sleep_ms(HALF_PULSE_LENGTH_MS);
-    printf("%d \r\n", current_encoder_value);
-}
-
 void setup_gpio() {
     uint8_t alength = sizeof(gpio_init_array);
 
@@ -213,15 +212,16 @@ int main(void) {
 
 
     // start core1 loop
+    sleep_ms(100);
     multicore_launch_core1(core1_entry);
+    sleep_ms(100);
 
     // core0 loop
     while (1) {
-        //encoder_task();
 
         // tinyusb host task
-        //tuh_task();
-        //hid_task();
+        tuh_task();
+        hid_task();
         led_blinking_task();
     }
     return 0;
