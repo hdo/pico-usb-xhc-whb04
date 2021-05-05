@@ -159,8 +159,9 @@ void encoder_task() {
 }
 
 void setup_gpio() {
-    uint8_t len = sizeof(gpio_init_array);
-    for(uint8_t current_gpio = 0; current_gpio < len; current_gpio++) {
+    uint8_t alen = sizeof(gpio_init_array);
+    for(uint8_t i = 0; i < alen; i++) {
+        uint8_t current_gpio = gpio_init_array[i];
         gpio_init(current_gpio);
         gpio_set_dir(current_gpio, GPIO_OUT);
         gpio_put(current_gpio, true);
@@ -181,6 +182,7 @@ int main(void) {
     tusb_init();
     setup();
 
+    puts("starting ...");
     while (1) {
         encoder_task();
 
