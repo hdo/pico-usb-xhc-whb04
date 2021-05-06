@@ -42,6 +42,8 @@
 #define HALF_PULSE_LENGTH_MS 1
 #define BUTTON_PULSE_LENGTH_MS 100
 
+#define MEASURE_INTERVAL_MS 200
+
 typedef struct TU_ATTR_PACKED
 {
   uint8_t buffer[128];  
@@ -71,15 +73,27 @@ uint8_t last_button_code = 0;
 int16_t current_encoder_value = 0;
 uint8_t current_speed = 1;
 
-
+uint32_t current_tick()  {
+    return time_us_32() / 1000;
+}
 
 void core1_entry() {
     int16_t encoder_value = 0;
+    int16_t measure_base = 0;
+    uint32_t last_ms = current_tick();
 
     puts("core1 started");
 
     // core1 main loop
     while(1) {
+
+        if (current_tick() - last_ms > MEASURE_INTERVAL_MS) {
+            last_ms = current_tick();
+            if (measure_base > 0) {
+                printf("speed: %d \r\n", measure_base);
+                measure_base = 0;
+            }
+        }
 
         // check for new data from core0
         if (multicore_fifo_rvalid()) {
@@ -87,6 +101,12 @@ void core1_entry() {
             int8_t value = (int8_t) (0xFF & data);
             if (value != 0) {
                 encoder_value += value;
+                if (value > 0) {
+                    measure_base += value;
+                }
+                else {
+                    measure_base -= value;
+                }
             }            
         }
 
