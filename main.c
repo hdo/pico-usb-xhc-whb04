@@ -18,6 +18,8 @@
 #include "pico/multicore.h"
 
 
+//#define SPEED_MEASURE_ENABLED 1
+
 #define GPIO_ENCODER_A  4
 #define GPIO_ENCODER_B  5
 
@@ -35,7 +37,7 @@
 #define GPIO_PROG_START  16
 #define GPIO_PROG_STOP   17
 
-#define GPIO_PWM_FEEDT   18
+#define GPIO_PWM_FEED    18
 #define GPIO_PWM_SPINDLE 19
 
 
@@ -87,13 +89,16 @@ void core1_entry() {
     // core1 main loop
     while(1) {
 
+
+        #ifdef SPEED_MEASURE_ENABLED
         if (current_tick() - last_ms > MEASURE_INTERVAL_MS) {
             last_ms = current_tick();
             if (measure_base > 0) {
-                printf("speed: %d \r\n", measure_base);
+                // printf("speed: %d \r\n", measure_base);
                 measure_base = 0;
             }
         }
+        #endif
 
         // check for new data from core0
         if (multicore_fifo_rvalid()) {
